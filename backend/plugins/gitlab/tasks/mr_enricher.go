@@ -42,7 +42,7 @@ var EnrichMergeRequestsMeta = plugin.SubTaskMeta{
 	EntryPoint:       EnrichMergeRequests,
 	EnabledByDefault: true,
 	Description:      "Enrich merge requests data from GitlabCommit, GitlabMrNote and GitlabMergeRequest",
-	DomainTypes:      []string{plugin.DOMAIN_TYPE_CODE_REVIEW, plugin.DOMAIN_TYPE_TICKET},
+	DomainTypes:      []string{plugin.DOMAIN_TYPE_CODE_REVIEW},
 	Dependencies:     []*plugin.SubTaskMeta{&ExtractApiJobsMeta},
 }
 
