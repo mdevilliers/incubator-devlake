@@ -23,10 +23,12 @@ import (
 )
 
 type GitlabScopeConfig struct {
-	common.ScopeConfig   `mapstructure:",squash" json:",inline" gorm:"embedded"`
-	PrType               string            `mapstructure:"prType" json:"prType"`
-	PrComponent          string            `mapstructure:"prComponent" json:"prComponent"`
-	PrBodyClosePattern   string            `mapstructure:"prBodyClosePattern" json:"prBodyClosePattern"`
+	common.ScopeConfig `mapstructure:",squash" json:",inline" gorm:"embedded"`
+	PrType             string `mapstructure:"prType" json:"prType"`
+	PrComponent        string `mapstructure:"prComponent" json:"prComponent"`
+	// TODO: should we remove this as not used
+	//PrBodyClosePattern   string            `mapstructure:"prBodyClosePattern" json:"prBodyClosePattern"`
+	IssueRegex           string            `mapstructure:"IssueRegex" json:"issueRegex"`
 	IssueSeverity        string            `mapstructure:"issueSeverity" json:"issueSeverity"`
 	IssuePriority        string            `mapstructure:"issuePriority" json:"issuePriority"`
 	IssueComponent       string            `mapstructure:"issueComponent" json:"issueComponent"`
