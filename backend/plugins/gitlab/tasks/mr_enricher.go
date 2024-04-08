@@ -19,11 +19,16 @@ package tasks
 
 import (
 	"reflect"
+	"regexp"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/apache/incubator-devlake/core/dal"
 	"github.com/apache/incubator-devlake/core/errors"
+	"github.com/apache/incubator-devlake/core/models/domainlayer/ticket"
 	"github.com/apache/incubator-devlake/core/plugin"
+	"github.com/apache/incubator-devlake/helpers/pluginhelper/api"
 	helper "github.com/apache/incubator-devlake/helpers/pluginhelper/api"
 	"github.com/apache/incubator-devlake/plugins/gitlab/models"
 )
@@ -33,12 +38,24 @@ func init() {
 }
 
 var EnrichMergeRequestsMeta = plugin.SubTaskMeta{
-	Name:             "Enrich  Merge Requests",
+	Name:             "Enrich Merge Requests",
 	EntryPoint:       EnrichMergeRequests,
 	EnabledByDefault: true,
 	Description:      "Enrich merge requests data from GitlabCommit, GitlabMrNote and GitlabMergeRequest",
 	DomainTypes:      []string{plugin.DOMAIN_TYPE_CODE_REVIEW},
 	Dependencies:     []*plugin.SubTaskMeta{&ExtractApiJobsMeta},
+}
+
+var EnrichMergeRequestIssuesMeta = plugin.SubTaskMeta{
+	Name:             "Enrich Merge Request with Issues",
+	EntryPoint:       EnrichMergeRequestIssues,
+	EnabledByDefault: true,
+	Description:      "Create tool layer table gitlab_pull_request_issues from gitlab_merge_requests",
+	DomainTypes:      []string{plugin.DOMAIN_TYPE_CROSS},
+	DependencyTables: []string{
+		models.GitlabMergeRequest{}.TableName(), // cursor
+		RAW_MERGE_REQUEST_TABLE},
+	ProductTables: []string{models.GitlabMrIssue{}.TableName()},
 }
 
 func EnrichMergeRequests(taskCtx plugin.SubTaskContext) errors.Error {
@@ -162,4 +179,85 @@ func getReviewRounds(commits []models.GitlabCommit, notes []models.GitlabMrNote)
 		reviewRounds++
 	}
 	return reviewRounds
+}
+
+func EnrichMergeRequestIssues(taskCtx plugin.SubTaskContext) (err errors.Error) {
+	db := taskCtx.GetDal()
+	rawDataSubTaskArgs, data := CreateRawDataSubTaskArgs(taskCtx, RAW_MERGE_REQUEST_TABLE)
+
+	var mrIssueRegex *regexp.Regexp
+	mrIssuePattern := data.Options.ScopeConfig.IssueRegex
+
+	//the pattern before the issue number, sometimes, the issue number is #1098, sometimes it is https://xxx/#1098
+	mrIssuePattern = strings.Replace(mrIssuePattern, "%s", data.Options.FullName, 1)
+	if len(mrIssuePattern) > 0 {
+		mrIssueRegex, err = errors.Convert01(regexp.Compile(mrIssuePattern))
+		if err != nil {
+			return errors.Default.Wrap(err, "regexp Compile mrIssuePattern failed")
+		}
+	}
+	cursor, err := db.Cursor(dal.From(&models.GitlabMergeRequest{}),
+		dal.Where("project_id = ? AND connection_id = ?", data.Options.ProjectId, data.Options.ConnectionId))
+	if err != nil {
+		return err
+	}
+	defer cursor.Close()
+	// iterate all rows
+	converter, err := api.NewDataConverter(api.DataConverterArgs{
+		InputRowType:       reflect.TypeOf(models.GitlabMergeRequest{}),
+		Input:              cursor,
+		RawDataSubTaskArgs: *rawDataSubTaskArgs,
+		Convert: func(inputRow interface{}) ([]interface{}, errors.Error) {
+			gitlabMrRequest := inputRow.(*models.GitlabMergeRequest)
+
+			//find the issue in the body
+			issueNumberStr := ""
+
+			if mrIssueRegex != nil {
+				issueNumberStr = mrIssueRegex.FindString(gitlabMrRequest.Description)
+			}
+			//find the issue in the title
+			if issueNumberStr == "" {
+				issueNumberStr = mrIssueRegex.FindString(gitlabMrRequest.Title)
+			}
+
+			if issueNumberStr == "" {
+				return nil, nil
+			}
+
+			issueNumberStr = strings.ReplaceAll(issueNumberStr, "#", "")
+			issueNumberStr = strings.TrimSpace(issueNumberStr)
+
+			issue := &ticket.Issue{}
+
+			//change the issueNumberStr to int, if cannot be changed, just continue
+			issueNumber, numFormatErr := strconv.Atoi(issueNumberStr)
+			if numFormatErr != nil {
+				return nil, nil
+			}
+			err = db.All(
+				issue,
+				dal.Where("issue_key = ?",
+					issueNumber),
+				dal.Limit(1),
+			)
+			if err != nil {
+				return nil, err
+			}
+			//fmt.Println("found one:", issueNumberStr, issue)
+			// TODO : figure out why the _raw_xxx is not being saved.
+			pullRequestIssue := &models.GitlabMrIssue{
+				ConnectionId:  data.Options.ConnectionId,
+				PullRequestId: gitlabMrRequest.GitlabId,
+				IssueId:       issue.Id,
+			}
+
+			return []interface{}{pullRequestIssue}, nil
+		},
+	})
+	if err != nil {
+		return err
+	}
+
+	return converter.Execute()
 }

@@ -91,6 +91,7 @@ func (p Gitlab) GetTablesInfo() []dal.Tabler {
 		&models.GitlabMergeRequest{},
 		&models.GitlabMrComment{},
 		&models.GitlabMrCommit{},
+		&models.GitlabMrIssue{},
 		&models.GitlabMrLabel{},
 		&models.GitlabMrNote{},
 		&models.GitlabPipeline{},
