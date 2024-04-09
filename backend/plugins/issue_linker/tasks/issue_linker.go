@@ -18,7 +18,6 @@ limitations under the License.
 package tasks
 
 import (
-	"fmt"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -65,11 +64,11 @@ func LinkIssues(taskCtx plugin.SubTaskContext) (err errors.Error) {
 	rawDataSubTaskArgs := &api.RawDataSubTaskArgs{
 		Ctx:    taskCtx,
 		Params: data,
-		Table:  code.PullRequest{}.TableName(),
-	}
+		Table:  code.PullRequest{}.TableName(), // REVIEW
+	} // REVIEW: metadata never added for some reason?
 
 	issuePattern := data.Options.ScopeConfig.IssueRegex
-	mrIssueRegex, err := errors.Convert01(regexp.Compile(issuePattern))
+	issueRegex, err := errors.Convert01(regexp.Compile(issuePattern))
 	if err != nil {
 		return errors.Default.Wrap(err, "regexp compile failed")
 	}
@@ -91,12 +90,12 @@ func LinkIssues(taskCtx plugin.SubTaskContext) (err errors.Error) {
 			//find the issue in the body
 			issueNumberStr := ""
 
-			if mrIssueRegex != nil {
-				issueNumberStr = mrIssueRegex.FindString(pullRequest.Description)
+			if issueRegex != nil {
+				issueNumberStr = issueRegex.FindString(pullRequest.Description)
 			}
 			//find the issue in the title
 			if issueNumberStr == "" {
-				issueNumberStr = mrIssueRegex.FindString(pullRequest.Title)
+				issueNumberStr = issueRegex.FindString(pullRequest.Title)
 			}
 
 			if issueNumberStr == "" {
@@ -122,7 +121,7 @@ func LinkIssues(taskCtx plugin.SubTaskContext) (err errors.Error) {
 			if err != nil {
 				return nil, err
 			}
-			fmt.Println("found one:", issueNumberStr, issue)
+
 			pullRequestIssue := &crossdomain.PullRequestIssue{
 				PullRequestId:  pullRequest.Id,
 				IssueId:        issue.Id,
