@@ -65,6 +65,7 @@ func LinkIssues(taskCtx plugin.SubTaskContext) (err errors.Error) {
 	rawDataSubTaskArgs := &api.RawDataSubTaskArgs{
 		Ctx:    taskCtx,
 		Params: data,
+		Table:  code.PullRequest{}.TableName(),
 	}
 
 	issuePattern := data.Options.ScopeConfig.IssueRegex

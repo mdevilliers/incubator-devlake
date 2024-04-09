@@ -83,7 +83,7 @@ func (i IssueLinker) PrepareTaskData(taskCtx plugin.TaskContext, options map[str
 
 	return tasks.IssueLinkerTaskData{
 		Options: &op,
-	}, nil // REVIEW
+	}, nil
 }
 
 // RootPkgPath information lost when compiled as plugin(.so)
